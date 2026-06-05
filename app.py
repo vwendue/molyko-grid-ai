@@ -6,6 +6,8 @@ import seaborn as sns
 from sklearn.linear_model import LogisticRegression
 from sklearn.cluster import KMeans
 from sklearn.tree import DecisionTreeClassifier, export_text
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
 
 # 1. PAGE SETUP
 st.set_page_config(page_title="Molyko Grid AI - Pro Dashboard", layout="wide")
@@ -135,21 +137,29 @@ with tab3:
     st.markdown("Automated pattern extraction using Unsupervised Clustering and Dependency Modelling.")
     
     st.divider()
+
+    # --- NEW: PREPROCESSING SUMMARY ---
+    st.subheader("0. Data Preprocessing & Transformation")
+    st.info("""
+    **Transformation Applied:** One-Hot Encoding via `pd.get_dummies()`
+    * **Purpose:** Machine learning algorithms require numerical input. The raw dataset contained categorical qualitative data (e.g., `Weather` = Rain, Clear, Dull).
+    * **Action:** The system automatically transformed the `Weather` column into separate binary quantitative columns. 
+    * **Result:** Non-numerical strings were successfully vectorized for mathematical processing without implying false ranking.
+    """)
+    st.divider()
     
     # --- 1. CLUSTERING (Unit 2 Requirement) ---
     st.subheader("1. Grid State Clustering (Unsupervised)")
     st.write("Discovering hidden structures in quantitative data (Voltage & Flicker) without using the known outage labels.")
     
-    # Prepare quantitative data and run K-Means
     cluster_data = df[['Voltage_V', 'Flicker_Count']].dropna()
     kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
     cluster_data['Cluster'] = kmeans.fit_predict(cluster_data)
     
-    # Visualize the clusters
-    fig, ax = plt.subplots(figsize=(8, 5))
-    sns.scatterplot(data=cluster_data, x='Voltage_V', y='Flicker_Count', hue='Cluster', palette='viridis', ax=ax)
+    fig1, ax1 = plt.subplots(figsize=(8, 4))
+    sns.scatterplot(data=cluster_data, x='Voltage_V', y='Flicker_Count', hue='Cluster', palette='viridis', ax=ax1)
     plt.title("K-Means Clustering of Grid Behavior")
-    st.pyplot(fig)
+    st.pyplot(fig1)
     
     st.divider()
 
@@ -157,12 +167,42 @@ with tab3:
     st.subheader("2. Dependency Modelling & Rule Extraction")
     st.write("Extracting explicit logical relationships between categorical weather and quantitative voltage metrics.")
     
-    # Train a shallow decision tree to extract readable rules
     X_tree = pd.get_dummies(df[['Voltage_V', 'Flicker_Count', 'Weather']], drop_first=True)
     y_tree = df['Outage_Occured']
     dtree = DecisionTreeClassifier(max_depth=3, random_state=42)
     dtree.fit(X_tree, y_tree)
     
-    # Export and display the rules
     tree_rules = export_text(dtree, feature_names=list(X_tree.columns))
     st.code(tree_rules, language='text')
+
+    st.divider()
+
+    # --- NEW: MODEL ACCURACY COMPARISON ---
+    st.subheader("3. Model Accuracy Comparison")
+    st.write("Benchmarking the foundational Logistic Regression model against the new Decision Tree classifier.")
+    
+    # Train/Test Split for fair evaluation
+    X_full = pd.get_dummies(df[['Voltage_V', 'Flicker_Count', 'Weather', 'ENEO_Post']], drop_first=True)
+    y_full = df['Outage_Occured']
+    X_tr, X_te, y_tr, y_te = train_test_split(X_full, y_full, test_size=0.2, random_state=42)
+    
+    # Train both on the split
+    lr_eval = LogisticRegression(max_iter=1000).fit(X_tr, y_tr)
+    dt_eval = DecisionTreeClassifier(max_depth=3, random_state=42).fit(X_tr, y_tr)
+    
+    # Calculate Accuracy
+    lr_acc = accuracy_score(y_te, lr_eval.predict(X_te)) * 100
+    dt_acc = accuracy_score(y_te, dt_eval.predict(X_te)) * 100
+    
+    # Display Metrics
+    comp1, comp2 = st.columns(2)
+    comp1.metric("Logistic Regression Accuracy", f"{lr_acc:.1f}%")
+    comp2.metric("Decision Tree Accuracy", f"{dt_acc:.1f}%", delta=f"{dt_acc - lr_acc:.1f}% vs LR", delta_color="normal")
+    
+    # Display Bar Chart
+    fig2, ax2 = plt.subplots(figsize=(6, 3))
+    sns.barplot(x=["Logistic Regression", "Decision Tree"], y=[lr_acc, dt_acc], palette="mako", ax=ax2)
+    ax2.set_ylabel("Accuracy (%)")
+    ax2.set_ylim(0, 100)
+    plt.title("Classification Performance")
+    st.pyplot(fig2)
