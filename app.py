@@ -4,6 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.linear_model import LogisticRegression
+from sklearn.cluster import KMeans
+from sklearn.tree import DecisionTreeClassifier, export_text
 
 # 1. PAGE SETUP
 st.set_page_config(page_title="Molyko Grid AI - Pro Dashboard", layout="wide")
@@ -84,7 +86,7 @@ m4.metric("Grid Flicker", f"{input_flicker} Hz")
 st.divider()
 
 # 5. RISK CALCULATION & TABS
-tab1, tab2 = st.tabs(["🚀 Real-Time Prediction", "📊 Historical Insights"])
+tab1, tab2, tab3 = st.tabs(["🚀 Real-Time Prediction", "📊 Historical Insights", "⛏️ CEC420 Mining Engine"])
 
 with tab1:
     col_left, col_right = st.columns([1, 1])
@@ -127,3 +129,40 @@ with tab2:
         numeric_df = df[['Voltage_V', 'Flicker_Count', 'ENEO_Post', 'Outage_Occured']]
         sns.heatmap(numeric_df.corr(), annot=True, cmap='coolwarm', ax=ax)
         st.pyplot(fig)
+
+with tab3:
+    st.header("CEC420: Data Mining Discoveries (KDD)")
+    st.markdown("Automated pattern extraction using Unsupervised Clustering and Dependency Modelling.")
+    
+    st.divider()
+    
+    # --- 1. CLUSTERING (Unit 2 Requirement) ---
+    st.subheader("1. Grid State Clustering (Unsupervised)")
+    st.write("Discovering hidden structures in quantitative data (Voltage & Flicker) without using the known outage labels.")
+    
+    # Prepare quantitative data and run K-Means
+    cluster_data = df[['Voltage_V', 'Flicker_Count']].dropna()
+    kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
+    cluster_data['Cluster'] = kmeans.fit_predict(cluster_data)
+    
+    # Visualize the clusters
+    fig, ax = plt.subplots(figsize=(8, 5))
+    sns.scatterplot(data=cluster_data, x='Voltage_V', y='Flicker_Count', hue='Cluster', palette='viridis', ax=ax)
+    plt.title("K-Means Clustering of Grid Behavior")
+    st.pyplot(fig)
+    
+    st.divider()
+
+    # --- 2. RULE EXTRACTION (Unit 2 Requirement) ---
+    st.subheader("2. Dependency Modelling & Rule Extraction")
+    st.write("Extracting explicit logical relationships between categorical weather and quantitative voltage metrics.")
+    
+    # Train a shallow decision tree to extract readable rules
+    X_tree = pd.get_dummies(df[['Voltage_V', 'Flicker_Count', 'Weather']], drop_first=True)
+    y_tree = df['Outage_Occured']
+    dtree = DecisionTreeClassifier(max_depth=3, random_state=42)
+    dtree.fit(X_tree, y_tree)
+    
+    # Export and display the rules
+    tree_rules = export_text(dtree, feature_names=list(X_tree.columns))
+    st.code(tree_rules, language='text')
