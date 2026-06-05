@@ -8,6 +8,7 @@ from sklearn.cluster import KMeans
 from sklearn.tree import DecisionTreeClassifier, export_text
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 
 # 1. PAGE SETUP
 st.set_page_config(page_title="Molyko Grid AI - Pro Dashboard", layout="wide")
@@ -178,8 +179,38 @@ with tab3:
     st.divider()
 
     # --- NEW: MODEL ACCURACY COMPARISON ---
-    st.subheader("3. Model Accuracy Comparison")
-    st.write("Benchmarking the foundational Logistic Regression model against the new Decision Tree classifier.")
+    # --- 3. MODEL ACCURACY COMPARISON ---
+    st.subheader("3. Model Performance Metrics")
+    st.write("Benchmarking the foundational Logistic Regression model against the Decision Tree classifier.")
+    
+    # Train/Test Split (80/20)
+    X_full = pd.get_dummies(df[['Voltage_V', 'Flicker_Count', 'Weather', 'ENEO_Post']], drop_first=True)
+    y_full = df['Outage_Occured']
+    X_tr, X_te, y_tr, y_te = train_test_split(X_full, y_full, test_size=0.2, random_state=42)
+    
+    # Train both on the split
+    lr_eval = LogisticRegression(max_iter=1000).fit(X_tr, y_tr)
+    dt_eval = DecisionTreeClassifier(max_depth=3, random_state=42).fit(X_tr, y_tr)
+    
+    # Get Predictions
+    lr_pred = lr_eval.predict(X_te)
+    dt_pred = dt_eval.predict(X_te)
+    lr_prob = lr_eval.predict_proba(X_te)[:, 1] # Needed for ROC-AUC
+    
+    # Generate Metrics DataFrame
+    metrics_data = {
+        "Model": ["Decision Tree (depth=3)", "Logistic Regression"],
+        "Accuracy": [f"{accuracy_score(y_te, dt_pred)*100:.1f}%", f"{accuracy_score(y_te, lr_pred)*100:.1f}%"],
+        "Precision": [f"{precision_score(y_te, dt_pred, zero_division=0):.2f}", f"{precision_score(y_te, lr_pred, zero_division=0):.2f}"],
+        "Recall": [f"{recall_score(y_te, dt_pred, zero_division=0):.2f}", f"{recall_score(y_te, lr_pred, zero_division=0):.2f}"],
+        "F1-Score": [f"{f1_score(y_te, dt_pred, zero_division=0):.2f}", f"{f1_score(y_te, lr_pred, zero_division=0):.2f}"],
+        "ROC-AUC": ["—", f"{roc_auc_score(y_te, lr_prob):.2f}"]
+    }
+    
+    metrics_df = pd.DataFrame(metrics_data)
+    
+    # Display the table cleanly on the dashboard
+    st.dataframe(metrics_df, use_container_width=True, hide_index=True)
     
     # Train/Test Split for fair evaluation
     X_full = pd.get_dummies(df[['Voltage_V', 'Flicker_Count', 'Weather', 'ENEO_Post']], drop_first=True)
